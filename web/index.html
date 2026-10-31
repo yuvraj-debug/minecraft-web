@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Antigravity Voxel Sandbox 3D - WebGL Engine</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #05060a;
+            font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+            color: #f1f5f9;
+        }
+        #viewport {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        /* Reticle */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 16px;
+            height: 16px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+            box-shadow: 0 0 4px rgba(0, 240, 255, 0.8);
+        }
+        #crosshair::before {
+            top: 7px; left: 0; width: 16px; height: 2px;
+        }
+        #crosshair::after {
+            top: 0; left: 7px; width: 2px; height: 16px;
+        }
+
+        /* Top telemetry bar */
+        .telemetry-bar {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(10, 15, 29, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            color: #94a3b8;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 360px;
+        }
+        .telemetry-title {
+            color: #38bdf8;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .telemetry-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+        }
+        .telemetry-val {
+            color: #f8fafc;
+            font-weight: 600;
+        }
+        .telemetry-val.highlight {
+            color: #34d399;
+        }
+        .telemetry-val.accent {
+            color: #f43f5e;
+        }
+        .zone-badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.4);
+        }
+
+        /* Gravity Tensor Matrix Display */
+        .tensor-box {
+            margin-top: 4px;
+            padding: 6px 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 4px;
+            border: 1px dashed rgba(255, 255, 255, 0.15);
+        }
+        .tensor-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 4px;
+            text-align: right;
+            font-size: 10.5px;
+            color: #cbd5e1;
+            margin-top: 4px;
+        }
+
+        /* Controls Panel (Top Right) */
+        .controls-panel {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: rgba(10, 15, 29, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            padding: 14px 18px;
+            font-size: 12px;
+            color: #cbd5e1;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 320px;
+        }
+        .controls-title {
+            color: #fbbf24;
+            font-weight: 700;
+            font-size: 13px;
+            letter-spacing: 0.8px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .key-badge {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-family: monospace;
+            font-weight: 700;
+            color: #f8fafc;
+            font-size: 11px;
+        }
+        .control-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 6px;
+        }
+
+        /* Hotbar (Bottom Center) */
+        .hotbar {
+            position: absolute;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 8px;
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+            pointer-events: auto;
+        }
+        .hotbar-slot {
+            width: 52px;
+            height: 52px;
+            border-radius: 8px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background: rgba(255, 255, 255, 0.04);
+        }
+        .hotbar-slot.active {
+            border-color: #00f0ff;
+            background: rgba(0, 240, 255, 0.18);
+            box-shadow: 0 0 16px rgba(0, 240, 255, 0.5);
+            transform: translateY(-4px);
+        }
+        .hotbar-icon {
+            width: 26px;
+            height: 26px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+        }
+        .hotbar-num {
+            position: absolute;
+            top: 2px;
+            left: 4px;
+            font-size: 10px;
+            font-family: monospace;
+            font-weight: bold;
+            color: #94a3b8;
+        }
+        .hotbar-name {
+            font-size: 8px;
+            font-weight: 600;
+            color: #cbd5e1;
+            text-align: center;
+            max-width: 48px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        /* Start Overlay Screen */
+        #blocker {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(3, 7, 18, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            cursor: pointer;
+        }
+        .start-card {
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(0, 240, 255, 0.4);
+            border-radius: 16px;
+            padding: 36px 44px;
+            text-align: center;
+            max-width: 540px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8), 0 0 40px rgba(0, 240, 255, 0.15);
+        }
+        .start-title {
+            font-size: 28px;
+            font-weight: 800;
+            background: linear-gradient(135deg, #38bdf8, #00f0ff, #818cf8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            letter-spacing: 1px;
+        }
+        .start-subtitle {
+            color: #94a3b8;
+            font-size: 14px;
+            line-height: 1.6;
+            margin-bottom: 24px;
+        }
+        .start-btn {
+            display: inline-block;
+            background: linear-gradient(135deg, #0284c7, #0ea5e9);
+            color: white;
+            font-weight: 700;
+            font-size: 15px;
+            padding: 12px 32px;
+            border-radius: 8px;
+            border: none;
+            letter-spacing: 0.5px;
+            box-shadow: 0 4px 20px rgba(14, 165, 233, 0.4);
+            transition: all 0.2s;
+        }
+        .start-btn:hover {
+            background: linear-gradient(135deg, #0369a1, #0284c7);
+            transform: scale(1.03);
+            box-shadow: 0 6px 25px rgba(14, 165, 233, 0.6);
+        }
+        .feature-pills {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 20px;
+            flex-wrap: wrap;
+        }
+        .pill {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="viewport"></canvas>
+
+    <!-- Start / Click to Play Screen -->
+    <div id="blocker">
+        <div class="start-card">
+            <h1 class="start-title">VOXEL ENGINE 3D</h1>
+            <p class="start-subtitle">
+                Arbitrary Local Antigravity Sandbox Simulation.<br>
+                Walk 360° around spherical planetoids, explore rotating O'Neill centrifuges, jump on antigravity repulsion pads, and break/place voxels with dynamic physics.
+            </p>
+            <button class="start-btn" id="startBtn">CLICK TO ENGAGE SIMULATION</button>
+            <div class="feature-pills">
+                <span class="pill">Spherical Planetoid</span>
+                <span class="pill">Centrifugal Station</span>
+                <span class="pill">Antigravity Jump Pad</span>
+                <span class="pill">6-DOF SLERP Camera</span>
+                <span class="pill">Voxel Physics</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD Overlay -->
+    <div id="hud">
+        <div id="crosshair"></div>
+
+        <!-- Left Telemetry Box -->
+        <div class="telemetry-bar">
+            <div class="telemetry-title">
+                <span>GRAVITY TELEMETRY</span>
+                <span id="fpsCounter" class="telemetry-val highlight">60 FPS</span>
+            </div>
+            <div class="telemetry-row">
+                <span>Field Domain:</span>
+                <span id="activeZoneBadge" class="zone-badge">Radial Planetoid</span>
+            </div>
+            <div class="telemetry-row">
+                <span>Gravity Vector:</span>
+                <span id="gravityVecVal" class="telemetry-val">(0.00, -9.81, 0.00)</span>
+            </div>
+            <div class="telemetry-row">
+                <span>Magnitude (||g||):</span>
+                <span id="gravityMagVal" class="telemetry-val highlight">9.81 m/s²</span>
+            </div>
+            <div class="telemetry-row">
+                <span>Player Position:</span>
+                <span id="playerPosVal" class="telemetry-val">(0.0, 26.0, 0.0)</span>
+            </div>
+            <div class="telemetry-row">
+                <span>Orientation (Quat):</span>
+                <span id="playerQuatVal" class="telemetry-val">[1.00, 0.00, 0.00, 0.00]</span>
+            </div>
+            <div class="telemetry-row">
+                <span>Memory Footprint:</span>
+                <span id="chunkMemoryVal" class="telemetry-val">128 KB (Palette)</span>
+            </div>
+
+            <div class="tensor-box">
+                <div style="font-size: 10px; color: #38bdf8; font-weight: bold;">TIDAL TENSOR T_ij (d g_i / d x_j)</div>
+                <div class="tensor-grid" id="tensorGrid">
+                    <span>-0.010</span><span>0.000</span><span>0.000</span>
+                    <span>0.000</span><span>0.028</span><span>0.000</span>
+                    <span>0.000</span><span>0.000</span><span>-0.010</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Controls Box -->
+        <div class="controls-panel">
+            <div class="controls-title">
+                <span>CONTROLS & 6-DOF</span>
+                <span class="key-badge">WASD</span>
+            </div>
+            <div class="control-item">
+                <span>Move Relative to Up:</span>
+                <span class="key-badge">W, A, S, D</span>
+            </div>
+            <div class="control-item">
+                <span>Sprint Booster:</span>
+                <span class="key-badge">Shift</span>
+            </div>
+            <div class="control-item">
+                <span>Jump / Zero-G Thrust:</span>
+                <span class="key-badge">Space</span>
+            </div>
+            <div class="control-item">
+                <span>Crouch / Descend:</span>
+                <span class="key-badge">C</span>
+            </div>
+            <div class="control-item">
+                <span>Mine Voxel (Shatter):</span>
+                <span class="key-badge">Left Click</span>
+            </div>
+            <div class="control-item">
+                <span>Place Voxel:</span>
+                <span class="key-badge">Right Click</span>
+            </div>
+            <div class="control-item">
+                <span>Select Material:</span>
+                <span class="key-badge">1 - 6</span>
+            </div>
+            <div class="control-item">
+                <span>Teleport Location:</span>
+                <span class="key-badge">T</span>
+            </div>
+        </div>
+
+        <!-- Hotbar -->
+        <div class="hotbar" id="hotbar">
+            <div class="hotbar-slot active" data-index="1">
+                <span class="hotbar-num">1</span>
+                <div class="hotbar-icon" style="background: linear-gradient(135deg, #10b981, #047857);"></div>
+                <span class="hotbar-name">Grass</span>
+            </div>
+            <div class="hotbar-slot" data-index="2">
+                <span class="hotbar-num">2</span>
+                <div class="hotbar-icon" style="background: linear-gradient(135deg, #64748b, #475569);"></div>
+                <span class="hotbar-name">Stone</span>
+            </div>
+            <div class="hotbar-slot" data-index="3">
+                <span class="hotbar-num">3</span>
+                <div class="hotbar-icon" style="background: linear-gradient(135deg, #38bdf8, #0284c7);"></div>
+                <span class="hotbar-name">Hull Plate</span>
+            </div>
+            <div class="hotbar-slot" data-index="4">
+                <span class="hotbar-num">4</span>
+                <div class="hotbar-icon" style="background: linear-gradient(135deg, #a855f7, #6366f1); box-shadow: 0 0 8px #a855f7;"></div>
+                <span class="hotbar-name">Antigrav</span>
+            </div>
+            <div class="hotbar-slot" data-index="5">
+                <span class="hotbar-num">5</span>
+                <div class="hotbar-icon" style="background: linear-gradient(135deg, #fbbf24, #d97706);"></div>
+                <span class="hotbar-name">Gold Ore</span>
+            </div>
+            <div class="hotbar-slot" data-index="6">
+                <span class="hotbar-num">6</span>
+                <div class="hotbar-icon" style="background: rgba(255, 255, 255, 0.4); border: 1px solid white;"></div>
+                <span class="hotbar-name">Glass</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Three.js (Offline Local + Fallback) -->
+    <script src="three.min.js"></script>
+    <script>
+        if (typeof THREE === 'undefined') {
+            document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"><\/script>');
+        }
+    </script>
+
+    <script>
+        // =====================================================================
+        // VOXEL ENGINE JAVASCRIPT / WEBGL IMPLEMENTATION
+        // Complete Mathematical Port of GravityFieldManager & 6-DOF Controller
+        // =====================================================================
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('viewport');
+            const blocker = document.getElementById('blocker');
+            const startBtn = document.getElementById('startBtn');
+
+            // -----------------------------------------------------------------
+            // 1. SCENE SETUP & THREE.JS RENDERER
+            // -----------------------------------------------------------------
+            const renderer = new THREE.WebGLRenderer({
+                canvas: canvas,
+                antialias: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2.0));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+            const scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030712);
+            scene.fog = new THREE.FogExp2(0x030712, 0.003);
+
+            const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+            // Lighting: Cosmic Sun & Ambient Star Radiance
+            const ambientLight = new THREE.AmbientLight(0x223355, 0.8);
+            scene.add(ambientLight);
+
+            const sunLight = new THREE.DirectionalLight(0xfff8ee, 2.2);
+            sunLight.position.set(150, 200, 100);
+            sunLight.castShadow = true;
+            sunLight.shadow.mapSize.width = 2048;
+            sunLight.shadow.mapSize.height = 2048;
+            sunLight.shadow.camera.near = 10;
+            sunLight.shadow.camera.far = 400;
+            sunLight.shadow.camera.left = -80;
+            sunLight.shadow.camera.right = 80;
+            sunLight.shadow.camera.top = 80;
+            sunLight.shadow.camera.bottom = -80;
+            scene.add(sunLight);
+
+            // Additional rim light for planetary orbit feel
+            const rimLight = new THREE.DirectionalLight(0x38bdf8, 0.6);
+            rimLight.position.set(-100, -50, -100);
+            scene.add(rimLight);
+
+            // Deep Space Cosmic Starfield
+            const starGeo = new THREE.BufferGeometry();
+            const starCount = 3000;
+            const starPos = new Float32Array(starCount * 3);
+            const starColors = new Float32Array(starCount * 3);
+            for (let i = 0; i < starCount; i++) {
+                const r = 400 + Math.random() * 300;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+                starPos[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+                starPos[i * 3 + 2] = r * Math.cos(phi);
+                
+                const c = Math.random();
+                if (c > 0.8) {
+                    starColors[i * 3] = 0.5; starColors[i * 3 + 1] = 0.8; starColors[i * 3 + 2] = 1.0;
+                } else if (c > 0.6) {
+                    starColors[i * 3] = 1.0; starColors[i * 3 + 1] = 0.8; starColors[i * 3 + 2] = 0.4;
+                } else {
+                    starColors[i * 3] = 0.9; starColors[i * 3 + 1] = 0.9; starColors[i * 3 + 2] = 0.9;
+                }
+            }
+            starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+            starGeo.setAttribute('color', new THREE.BufferAttribute(starColors, 3));
+            const starMat = new THREE.PointsMaterial({ size: 2.0, vertexColors: true, transparent: true, opacity: 0.85 });
+            const stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+
+            // -----------------------------------------------------------------
+            // 2. GRAVITY FIELD MANAGER MATHEMATICAL FORMULATIONS
+            // -----------------------------------------------------------------
+            const GravityFieldType = {
+                Radial: 0,
+                Cylindrical: 1,
+                NegativeVolume: 2,
+                Directional: 3
+            };
+
+            const gravityFields = [
+                // Field 1: Spherical Planetoid Alpha at origin (0, 0, 0)
+                {
+                    id: 1,
+                    name: "Radial Planetoid Alpha",
+                    type: GravityFieldType.Radial,
+                    position: new THREE.Vector3(0, 0, 0),
+                    innerRadius: 24.0,
+                    outerRadius: 60.0,
+                    surfaceGravity: 9.81,
+                    falloffExponent: 2.0,
+                    priority: 1.0
+                },
+                // Field 2: Rotating Centrifuge Space Station (O'Neill Cylinder) at (90, 40, 0)
+                {
+                    id: 2,
+                    name: "O'Neill Centrifuge Station",
+                    type: GravityFieldType.Cylindrical,
+                    position: new THREE.Vector3(90, 40, 0),
+                    direction: new THREE.Vector3(0, 0, 1), // Cylinder rotates along Z
+                    innerRadius: 18.0, // Walkable inner hull radius
+                    outerRadius: 24.0,
+                    surfaceGravity: 8.5,
+                    cylinderHalfLength: 26.0,
+                    priority: 2.5
+                },
+                // Field 3: Antigravity Repulsion Ring / Jump Pad at North Pole (0, 24, 0)
+                {
+                    id: 3,
+                    name: "Antigravity Repulsion Emitter",
+                    type: GravityFieldType.NegativeVolume,
+                    position: new THREE.Vector3(0, 24, 0),
+                    outerRadius: 12.0,
+                    surfaceGravity: 26.0, // Powerful 26 m/s^2 outward impulse
+                    priority: 3.5
+                },
+                // Field 4: Directional Gravity Space Bridge Conduit from (30, 26, 0) to (70, 35, 0)
+                {
+                    id: 4,
+                    name: "Wall-Running Gravity Conduit",
+                    type: GravityFieldType.Directional,
+                    position: new THREE.Vector3(50, 30, 0),
+                    direction: new THREE.Vector3(0, -1, 0),
+                    halfExtents: new THREE.Vector3(22, 6, 8),
+                    surfaceGravity: 9.81,
+                    priority: 2.0
+                }
+            ];
+
+            function smoothstep(edge0, edge1, x) {
+                const t = Math.max(0.0, Math.min(1.0, (x - edge0) / (edge1 - edge0)));
+                return t * t * (3.0 - 2.0 * t);
+            }
+
+            function calculateGravityAt(pos) {
+                const totalG = new THREE.Vector3(0, 0, 0);
+                let totalWeight = 0.0;
+                let activeFieldName = "Zero-G Deep Space";
+                let maxPriority = -1;
+
+                for (const field of gravityFields) {
+                    let g = new THREE.Vector3();
+
+                    if (field.type === GravityFieldType.Radial) {
+                        const delta = new THREE.Vector3().subVectors(pos, field.position);
+                        const dist = delta.length();
+                        if (dist > 0.001 && dist <= field.outerRadius) {
+                            const dir = delta.clone().normalize();
+                            if (dist <= field.innerRadius) {
+                                // Linear interior core gravity
+                                const ratio = dist / field.innerRadius;
+                                g = dir.multiplyScalar(-field.surfaceGravity * ratio);
+                            } else {
+                                // Inverse-square outer falloff with smoothstep outer fade
+                                const normDist = dist / field.innerRadius;
+                                const falloff = Math.pow(1.0 / normDist, field.falloffExponent);
+                                const fade = 1.0 - smoothstep(field.innerRadius, field.outerRadius, dist);
+                                g = dir.multiplyScalar(-field.surfaceGravity * falloff * fade);
+                            }
+                        }
+                    } else if (field.type === GravityFieldType.Cylindrical) {
+                        const axis = field.direction.clone().normalize();
+                        const delta = new THREE.Vector3().subVectors(pos, field.position);
+                        const axialDist = delta.dot(axis);
+                        const absAxial = Math.abs(axialDist);
+
+                        if (absAxial <= field.cylinderHalfLength + 6.0) {
+                            let axialFade = 1.0;
+                            if (absAxial > field.cylinderHalfLength) {
+                                axialFade = 1.0 - smoothstep(field.cylinderHalfLength, field.cylinderHalfLength + 6.0, absAxial);
+                            }
+
+                            const radialVec = new THREE.Vector3().subVectors(delta, axis.clone().multiplyScalar(axialDist));
+                            const radDist = radialVec.length();
+
+                            if (radDist > 0.001 && radDist <= field.outerRadius) {
+                                const radDir = radialVec.clone().normalize();
+                                const radialFade = 1.0 - smoothstep(field.innerRadius, field.outerRadius, radDist);
+                                // Outward centrifugal spin gravity towards cylinder hull
+                                const ratio = Math.min(1.2, radDist / field.innerRadius);
+                                g = radDir.multiplyScalar(field.surfaceGravity * ratio * axialFade * radialFade);
+                            }
+                        }
+                    } else if (field.type === GravityFieldType.NegativeVolume) {
+                        const delta = new THREE.Vector3().subVectors(pos, field.position);
+                        const dist = delta.length();
+                        if (dist > 0.001 && dist < field.outerRadius) {
+                            const repulseDir = delta.clone().normalize();
+                            const t = dist / field.outerRadius;
+                            const strength = field.surfaceGravity * (1.0 - t) * (1.0 - t);
+                            g = repulseDir.multiplyScalar(strength); // Points away from center
+                        }
+                    } else if (field.type === GravityFieldType.Directional) {
+                        const delta = new THREE.Vector3().subVectors(pos, field.position);
+                        if (Math.abs(delta.x) <= field.halfExtents.x &&
+                            Math.abs(delta.y) <= field.halfExtents.y &&
+                            Math.abs(delta.z) <= field.halfExtents.z) {
+                            
+                            const dx = 1.0 - smoothstep(field.halfExtents.x - 1.5, field.halfExtents.x, Math.abs(delta.x));
+                            const dy = 1.0 - smoothstep(field.halfExtents.y - 1.5, field.halfExtents.y, Math.abs(delta.y));
+                            const dz = 1.0 - smoothstep(field.halfExtents.z - 1.5, field.halfExtents.z, Math.abs(delta.z));
+                            const fade = dx * dy * dz;
+                            g = field.direction.clone().normalize().multiplyScalar(field.surfaceGravity * fade);
+                        }
+                    }
+
+                    const magSq = g.lengthSq();
+                    if (magSq > 0.001) {
+                        const weight = field.priority;
+                        totalG.add(g.multiplyScalar(weight));
+                        totalWeight += weight;
+
+                        if (field.priority > maxPriority) {
+                            maxPriority = field.priority;
+                            activeFieldName = field.name;
+                        }
+                    }
+                }
+
+                if (totalWeight > 1.0) {
+                    totalG.divideScalar(totalWeight);
+                }
+
+                return { vector: totalG, activeZone: activeFieldName };
+            }
+
+            // Calculate Finite-Difference 3x3 Gravity Gradient Tensor T_ij
+            function calculateGravityGradientTensor(pos, step = 0.1) {
+                const inv2h = 0.5 / step;
+                const gxp = calculateGravityAt(new THREE.Vector3(pos.x + step, pos.y, pos.z)).vector;
+                const gxm = calculateGravityAt(new THREE.Vector3(pos.x - step, pos.y, pos.z)).vector;
+                const dg_dx = new THREE.Vector3().subVectors(gxp, gxm).multiplyScalar(inv2h);
+
+                const gyp = calculateGravityAt(new THREE.Vector3(pos.x, pos.y + step, pos.z)).vector;
+                const gym = calculateGravityAt(new THREE.Vector3(pos.x, pos.y - step, pos.z)).vector;
+                const dg_dy = new THREE.Vector3().subVectors(gyp, gym).multiplyScalar(inv2h);
+
+                const gzp = calculateGravityAt(new THREE.Vector3(pos.x, pos.y, pos.z + step)).vector;
+                const gzm = calculateGravityAt(new THREE.Vector3(pos.x, pos.y, pos.z - step)).vector;
+                const dg_dz = new THREE.Vector3().subVectors(gzp, gzm).multiplyScalar(inv2h);
+
+                return [
+                    [dg_dx.x, dg_dy.x, dg_dz.x],
+                    [dg_dx.y, dg_dy.y, dg_dz.y],
+                    [dg_dz.x, dg_dz.y, dg_dz.z]
+                ];
+            }
+
+            // -----------------------------------------------------------------
+            // 3. VOXEL WORLD ARCHITECTURE & PROCEDURAL GENERATION
+            // -----------------------------------------------------------------
+            const BLOCK = {
+                AIR: 0,
+                GRASS: 1,
+                STONE: 2,
+                HULL: 3,
+                ANTIGRAV: 4,
+                GOLD: 5,
+                GLASS: 6
+            };
+
+            const blockMaterials = {
+                [BLOCK.GRASS]: new THREE.MeshStandardMaterial({ color: 0x22c55e, roughness: 0.8, metalness: 0.1 }),
+                [BLOCK.STONE]: new THREE.MeshStandardMaterial({ color: 0x64748b, roughness: 0.9, metalness: 0.2 }),
+                [BLOCK.HULL]: new THREE.MeshStandardMaterial({ color: 0x38bdf8, roughness: 0.4, metalness: 0.8 }),
+                [BLOCK.ANTIGRAV]: new THREE.MeshStandardMaterial({ 
+                    color: 0xa855f7, 
+                    emissive: 0x9333ea, 
+                    emissiveIntensity: 0.9, 
+                    roughness: 0.2 
+                }),
+                [BLOCK.GOLD]: new THREE.MeshStandardMaterial({ color: 0xfbbf24, roughness: 0.3, metalness: 0.9 }),
+                [BLOCK.GLASS]: new THREE.MeshStandardMaterial({ 
+                    color: 0xe0f2fe, 
+                    transparent: true, 
+                    opacity: 0.55, 
+                    roughness: 0.1 
+                })
+            };
+
+            // Global Voxel Storage (Spatial Hash Map)
+            const voxelWorld = new Map();
+            function voxelKey(x, y, z) { return `${x},${y},${z}`; }
+            function getVoxel(x, y, z) { return voxelWorld.get(voxelKey(x, y, z)) || BLOCK.AIR; }
+            function setVoxel(x, y, z, type) {
+                const k = voxelKey(x, y, z);
+                if (type === BLOCK.AIR) {
+                    voxelWorld.delete(k);
+                } else {
+                    voxelWorld.set(k, type);
+                }
+            }
+
+            // Procedurally Generate the Spherical Planetoid Alpha
+            console.log("Generating Spherical Planetoid...");
+            const planetRadius = 24;
+            for (let x = -planetRadius - 1; x <= planetRadius + 1; x++) {
+                for (let y = -planetRadius - 1; y <= planetRadius + 1; y++) {
+                    for (let z = -planetRadius - 1; z <= planetRadius + 1; z++) {
+                        const dist = Math.sqrt(x * x + y * y + z * z);
+                        if (dist <= planetRadius) {
+                            if (dist > planetRadius - 1.5) {
+                                setVoxel(x, y, z, BLOCK.GRASS);
+                            } else if (dist > planetRadius - 4.5) {
+                                setVoxel(x, y, z, BLOCK.STONE);
+                            } else if (dist <= 6.0) {
+                                setVoxel(x, y, z, BLOCK.GOLD); // Core
+                            } else {
+                                setVoxel(x, y, z, BLOCK.STONE);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Antigravity Launch Pad at North Pole (0, 24, 0)
+            for (let dx = -2; dx <= 2; dx++) {
+                for (let dz = -2; dz <= 2; dz++) {
+                    setVoxel(dx, 24, dz, BLOCK.ANTIGRAV);
+                }
+            }
+
+            // Procedurally Generate O'Neill Centrifuge Space Station at (90, 40, 0)
+            console.log("Generating Rotating Centrifuge Station...");
+            const stationCenter = new THREE.Vector3(90, 40, 0);
+            const stationRadius = 18;
+            const stationHalfLen = 22;
+
+            for (let z = -stationHalfLen; z <= stationHalfLen; z++) {
+                for (let angleDeg = 0; angleDeg < 360; angleDeg += 10) {
+                    const rad = angleDeg * (Math.PI / 180.0);
+                    const localX = Math.round(Math.cos(rad) * stationRadius);
+                    const localY = Math.round(Math.sin(rad) * stationRadius);
+
+                    const wx = stationCenter.x + localX;
+                    const wy = stationCenter.y + localY;
+                    const wz = stationCenter.z + z;
+
+                    const isGlassWindow = (angleDeg % 40 === 0 && Math.abs(z) < 14);
+                    setVoxel(wx, wy, wz, isGlassWindow ? BLOCK.GLASS : BLOCK.HULL);
+
+                    // Add interior catwalks and walkways
+                    if (angleDeg % 90 === 0 && Math.abs(z) % 6 === 0) {
+                        setVoxel(wx, wy, wz, BLOCK.ANTIGRAV);
+                    }
+                }
+            }
+
+            // Procedurally Generate Wall-Running Gravity Conduit Bridge
+            console.log("Generating Wall-Running Gravity Conduit...");
+            for (let x = 30; x <= 65; x++) {
+                const y = Math.round(26 + (x - 30) * 0.25);
+                for (let z = -3; z <= 3; z++) {
+                    setVoxel(x, y, z, BLOCK.HULL);
+                    if (Math.abs(z) === 3) {
+                        setVoxel(x, y + 1, z, BLOCK.GLASS); // Guard rails
+                        setVoxel(x, y + 2, z, BLOCK.GLASS);
+                    }
+                    if (x % 5 === 0 && z === 0) {
+                        setVoxel(x, y, z, BLOCK.ANTIGRAV); // Power nodes
+                    }
+                }
+            }
+
+            // Build Optimized Instanced Voxel Meshes
+            const instancedMeshes = {};
+            const blockBoxGeo = new THREE.BoxGeometry(1, 1, 1);
+
+            function rebuildVoxelMesh() {
+                // Remove old meshes
+                for (const key in instancedMeshes) {
+                    scene.remove(instancedMeshes[key]);
+                    instancedMeshes[key].geometry.dispose();
+                }
+
+                // Bucket instances by block type
+                const buckets = {};
+                for (const [key, type] of voxelWorld.entries()) {
+                    if (!buckets[type]) buckets[type] = [];
+                    const [x, y, z] = key.split(',').map(Number);
+                    
+                    // Simple Culling: Only draw voxels with at least 1 transparent neighbor
+                    const isVisible = (
+                        getVoxel(x + 1, y, z) === BLOCK.AIR ||
+                        getVoxel(x - 1, y, z) === BLOCK.AIR ||
+                        getVoxel(x, y + 1, z) === BLOCK.AIR ||
+                        getVoxel(x, y - 1, z) === BLOCK.AIR ||
+                        getVoxel(x, y, z + 1) === BLOCK.AIR ||
+                        getVoxel(x, y, z - 1) === BLOCK.AIR
+                    );
+
+                    if (isVisible) {
+                        buckets[type].push(new THREE.Vector3(x, y, z));
+                    }
+                }
+
+                const dummy = new THREE.Object3D();
+                for (const type in buckets) {
+                    const coords = buckets[type];
+                    const instMesh = new THREE.InstancedMesh(blockBoxGeo, blockMaterials[type], coords.length);
+                    instMesh.castShadow = true;
+                    instMesh.receiveShadow = true;
+
+                    for (let i = 0; i < coords.length; i++) {
+                        dummy.position.copy(coords[i]);
+                        dummy.updateMatrix();
+                        instMesh.setMatrixAt(i, dummy.matrix);
+                    }
+                    instMesh.instanceMatrix.needsUpdate = true;
+                    scene.add(instMesh);
+                    instancedMeshes[type] = instMesh;
+                }
+            }
+
+            rebuildVoxelMesh();
+
+            // -----------------------------------------------------------------
+            // 4. DYNAMIC 6-DOF KINEMATIC CHARACTER CONTROLLER
+            // -----------------------------------------------------------------
+            const player = {
+                position: new THREE.Vector3(0, 26, 0),
+                velocity: new THREE.Vector3(0, 0, 0),
+                orientation: new THREE.Quaternion(), // 6-DOF Character Orientation
+                eyeHeight: 1.6,
+                pitch: 0.0,
+                yaw: 0.0,
+                isGrounded: false,
+                moveSpeed: 11.0,
+                jumpImpulse: 10.5
+            };
+
+            // Set initial upright orientation
+            player.orientation.set(0, 0, 0, 1);
+
+            // PointerLock & Input Controls
+            const keys = {
+                Forward: false,
+                Backward: false,
+                Left: false,
+                Right: false,
+                Jump: false,
+                Crouch: false,
+                Sprint: false
+            };
+
+            let isPointerLocked = false;
+            let activeMaterial = BLOCK.GRASS;
+
+            startBtn.addEventListener('click', () => {
+                canvas.requestPointerLock();
+            });
+
+            document.addEventListener('pointerlockchange', () => {
+                if (document.pointerLockElement === canvas) {
+                    isPointerLocked = true;
+                    blocker.style.display = 'none';
+                } else {
+                    isPointerLocked = false;
+                    blocker.style.display = 'flex';
+                }
+            });
+
+            window.addEventListener('keydown', (e) => {
+                switch (e.code) {
+                    case 'KeyW': keys.Forward = true; break;
+                    case 'KeyS': keys.Backward = true; break;
+                    case 'KeyA': keys.Left = true; break;
+                    case 'KeyD': keys.Right = true; break;
+                    case 'Space': keys.Jump = true; break;
+                    case 'KeyC': keys.Crouch = true; break;
+                    case 'ShiftLeft': keys.Sprint = true; break;
+                    case 'Digit1': selectHotbar(1); break;
+                    case 'Digit2': selectHotbar(2); break;
+                    case 'Digit3': selectHotbar(3); break;
+                    case 'Digit4': selectHotbar(4); break;
+                    case 'Digit5': selectHotbar(5); break;
+                    case 'Digit6': selectHotbar(6); break;
+                    case 'KeyT': // Teleport to Centrifuge or Planet
+                        if (player.position.distanceTo(new THREE.Vector3(0, 0, 0)) < 40) {
+                            player.position.set(90, 40 + 17, 0); // Inside centrifuge
+                        } else {
+                            player.position.set(0, 26, 0); // Planet North Pole
+                        }
+                        player.velocity.set(0, 0, 0);
+                        break;
+                }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                switch (e.code) {
+                    case 'KeyW': keys.Forward = false; break;
+                    case 'KeyS': keys.Backward = false; break;
+                    case 'KeyA': keys.Left = false; break;
+                    case 'KeyD': keys.Right = false; break;
+                    case 'Space': keys.Jump = false; break;
+                    case 'KeyC': keys.Crouch = false; break;
+                    case 'ShiftLeft': keys.Sprint = false; break;
+                }
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (!isPointerLocked) return;
+                const sensitivity = 0.0022;
+                player.yaw -= e.movementX * sensitivity;
+                player.pitch -= e.movementY * sensitivity;
+                player.pitch = Math.max(-Math.PI * 0.49, Math.min(Math.PI * 0.49, player.pitch));
+            });
+
+            function selectHotbar(idx) {
+                const slots = document.querySelectorAll('.hotbar-slot');
+                slots.forEach(s => s.classList.remove('active'));
+                const activeSlot = document.querySelector(`.hotbar-slot[data-index="${idx}"]`);
+                if (activeSlot) activeSlot.classList.add('active');
+                activeMaterial = idx;
+            }
+
+            document.querySelectorAll('.hotbar-slot').forEach(slot => {
+                slot.addEventListener('click', () => {
+                    selectHotbar(parseInt(slot.getAttribute('data-index')));
+                });
+            });
+
+            // -----------------------------------------------------------------
+            // 5. VOXEL RAYCASTING (MINE / PLACE) & SHATTER PARTICLES
+            // -----------------------------------------------------------------
+            const raycaster = new THREE.Raycaster();
+            const particles = [];
+            const particleGeo = new THREE.BoxGeometry(0.2, 0.2, 0.2);
+
+            function spawnVoxelShatter(pos, type) {
+                const mat = blockMaterials[type] || blockMaterials[BLOCK.STONE];
+                for (let i = 0; i < 12; i++) {
+                    const p = new THREE.Mesh(particleGeo, mat);
+                    p.position.copy(pos).add(new THREE.Vector3(
+                        (Math.random() - 0.5) * 0.8,
+                        (Math.random() - 0.5) * 0.8,
+                        (Math.random() - 0.5) * 0.8
+                    ));
+                    const vel = new THREE.Vector3(
+                        (Math.random() - 0.5) * 8.0,
+                        (Math.random() - 0.5) * 8.0,
+                        (Math.random() - 0.5) * 8.0
+                    );
+                    scene.add(p);
+                    particles.push({ mesh: p, vel: vel, life: 1.5 });
+                }
+            }
+
+            window.addEventListener('mousedown', (e) => {
+                if (!isPointerLocked) return;
+
+                // Raycast in direction of camera
+                raycaster.set(camera.position, camera.getWorldDirection(new THREE.Vector3()));
+                const maxReach = 8.0;
+
+                // Step along ray (Voxel DDA approximation)
+                const start = camera.position.clone();
+                const dir = camera.getWorldDirection(new THREE.Vector3()).normalize();
+                let hitVoxel = null;
+                let hitNormal = null;
+
+                for (let d = 0.5; d <= maxReach; d += 0.2) {
+                    const testPos = start.clone().add(dir.clone().multiplyScalar(d));
+                    const vx = Math.round(testPos.x);
+                    const vy = Math.round(testPos.y);
+                    const vz = Math.round(testPos.z);
+
+                    if (getVoxel(vx, vy, vz) !== BLOCK.AIR) {
+                        hitVoxel = new THREE.Vector3(vx, vy, vz);
+                        // Approximate normal from entry vector
+                        const prevPos = start.clone().add(dir.clone().multiplyScalar(d - 0.2));
+                        const px = Math.round(prevPos.x);
+                        const py = Math.round(prevPos.y);
+                        const pz = Math.round(prevPos.z);
+                        hitNormal = new THREE.Vector3(px - vx, py - vy, pz - vz).normalize();
+                        break;
+                    }
+                }
+
+                if (hitVoxel) {
+                    if (e.button === 0) {
+                        // Left click: Mine Block
+                        const oldType = getVoxel(hitVoxel.x, hitVoxel.y, hitVoxel.z);
+                        setVoxel(hitVoxel.x, hitVoxel.y, hitVoxel.z, BLOCK.AIR);
+                        spawnVoxelShatter(hitVoxel, oldType);
+                        rebuildVoxelMesh();
+                    } else if (e.button === 2) {
+                        // Right click: Place Block
+                        if (hitNormal) {
+                            const placePos = hitVoxel.clone().add(hitNormal);
+                            // Avoid placing inside player body
+                            if (placePos.distanceTo(player.position) > 1.2) {
+                                setVoxel(placePos.x, placePos.y, placePos.z, activeMaterial);
+                                rebuildVoxelMesh();
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Prevent context menu on right-click
+            window.addEventListener('contextmenu', e => e.preventDefault());
+
+            // -----------------------------------------------------------------
+            // 6. MAIN SIMULATION TICK & 6-DOF CAMERA SLERP LOOP
+            // -----------------------------------------------------------------
+            let lastTime = performance.now();
+            let frameCount = 0;
+            let lastFpsTime = performance.now();
+
+            function updateSimulation(deltaTime) {
+                const dt = Math.min(deltaTime, 0.05);
+
+                // 1. Evaluate Local Gravitational Field
+                const gravData = calculateGravityAt(player.position);
+                const gVec = gravData.vector;
+                const gMag = gVec.length();
+
+                // 2. Continuous Up-Vector Reorientation (Non-Singular SLERP)
+                if (gMag > 0.05) {
+                    const targetUp = gVec.clone().normalize().negate(); // Up is antiparallel to g
+                    const currentUp = new THREE.Vector3(0, 1, 0).applyQuaternion(player.orientation);
+
+                    // Compute rotation quaternion aligning currentUp to targetUp
+                    const deltaQuat = new THREE.Quaternion().setFromUnitVectors(currentUp, targetUp);
+                    const targetOrientation = deltaQuat.multiply(player.orientation.clone()).normalize();
+
+                    // Exponential SLERP damping factor
+                    const blend = 1.0 - Math.exp(-9.0 * dt);
+                    player.orientation.slerp(targetOrientation, blend);
+                }
+
+                // 3. Local Reference Frame Vectors
+                const charUp = new THREE.Vector3(0, 1, 0).applyQuaternion(player.orientation);
+                const charForward = new THREE.Vector3(0, 0, -1).applyQuaternion(player.orientation);
+                const charRight = new THREE.Vector3(1, 0, 0).applyQuaternion(player.orientation);
+
+                // Apply View Rotation (Yaw & Pitch)
+                const yawQuat = new THREE.Quaternion().setFromAxisAngle(charUp, player.yaw);
+                const viewForward = charForward.clone().applyQuaternion(yawQuat);
+                const viewRight = charRight.clone().applyQuaternion(yawQuat);
+
+                // 4. Movement Input Relative to Gravitational Up
+                const moveDir = new THREE.Vector3();
+                if (keys.Forward) moveDir.add(viewForward);
+                if (keys.Backward) moveDir.sub(viewForward);
+                if (keys.Right) moveDir.add(viewRight);
+                if (keys.Left) moveDir.sub(viewRight);
+
+                if (moveDir.lengthSq() > 0.001) {
+                    moveDir.normalize();
+                }
+
+                const currentSpeed = keys.Sprint ? player.moveSpeed * 1.8 : player.moveSpeed;
+
+                // 5. Collision Detection & Ground Check
+                // Sample points below player feet along gravity direction
+                const feetPos = player.position.clone();
+                const checkPos = feetPos.clone().add(charUp.clone().multiplyScalar(-0.4));
+                const groundVoxel = getVoxel(Math.round(checkPos.x), Math.round(checkPos.y), Math.round(checkPos.z));
+
+                player.isGrounded = (groundVoxel !== BLOCK.AIR);
+
+                if (player.isGrounded) {
+                    // Snap feet to surface & damp velocity along gravity
+                    const upVel = player.velocity.dot(charUp);
+                    if (upVel < 0) {
+                        player.velocity.sub(charUp.clone().multiplyScalar(upVel));
+                    }
+
+                    // Jump Impulse
+                    if (keys.Jump) {
+                        player.velocity.add(charUp.clone().multiplyScalar(player.jumpImpulse));
+                        player.isGrounded = false;
+                    }
+
+                    // Surface friction & locomotion
+                    const tangentVel = moveDir.clone().multiplyScalar(currentSpeed);
+                    player.velocity.x = tangentVel.x;
+                    player.velocity.y = tangentVel.y;
+                    player.velocity.z = tangentVel.z;
+                } else {
+                    // In-air / Zero-G ballistic integration
+                    player.velocity.add(gVec.clone().multiplyScalar(dt));
+
+                    // Air steering
+                    player.velocity.add(moveDir.clone().multiplyScalar(currentSpeed * 0.3 * dt));
+
+                    // Microgravity Jetpack Thrusters
+                    if (gMag < 1.0) {
+                        if (keys.Jump) player.velocity.add(charUp.clone().multiplyScalar(12.0 * dt));
+                        if (keys.Crouch) player.velocity.sub(charUp.clone().multiplyScalar(12.0 * dt));
+                        // Zero-G drag
+                        player.velocity.multiplyScalar(0.985);
+                    }
+                }
+
+                // Integrate Position
+                player.position.add(player.velocity.clone().multiplyScalar(dt));
+
+                // 6. Camera Placement
+                camera.position.copy(player.position).add(charUp.clone().multiplyScalar(player.eyeHeight));
+
+                // Combine Orientation with Yaw & Pitch
+                const finalCameraQuat = player.orientation.clone();
+                const qPitch = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(1, 0, 0), player.pitch);
+                const qYaw = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), player.yaw);
+
+                finalCameraQuat.multiply(qYaw).multiply(qPitch);
+                camera.quaternion.copy(finalCameraQuat);
+
+                // 7. Update Shatter Particles
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.vel.add(calculateGravityAt(p.mesh.position).vector.clone().multiplyScalar(dt));
+                    p.mesh.position.add(p.vel.clone().multiplyScalar(dt));
+                    p.mesh.rotation.x += 4.0 * dt;
+                    p.mesh.rotation.y += 3.0 * dt;
+                    p.life -= dt;
+                    if (p.life <= 0) {
+                        scene.remove(p.mesh);
+                        particles.splice(i, 1);
+                    }
+                }
+
+                // 8. Update HUD & Telemetry Data
+                document.getElementById('gravityVecVal').textContent = 
+                    `(${gVec.x.toFixed(2)}, ${gVec.y.toFixed(2)}, ${gVec.z.toFixed(2)})`;
+                document.getElementById('gravityMagVal').textContent = `${gMag.toFixed(2)} m/s²`;
+                document.getElementById('playerPosVal').textContent = 
+                    `(${player.position.x.toFixed(1)}, ${player.position.y.toFixed(1)}, ${player.position.z.toFixed(1)})`;
+                document.getElementById('playerQuatVal').textContent = 
+                    `[${player.orientation.w.toFixed(2)}, ${player.orientation.x.toFixed(2)}, ${player.orientation.y.toFixed(2)}, ${player.orientation.z.toFixed(2)}]`;
+                
+                const zoneBadge = document.getElementById('activeZoneBadge');
+                zoneBadge.textContent = gravData.activeZone;
+
+                // Color code zones
+                if (gravData.activeZone.includes("Radial")) {
+                    zoneBadge.style.borderColor = "rgba(56, 189, 248, 0.5)";
+                    zoneBadge.style.color = "#38bdf8";
+                } else if (gravData.activeZone.includes("Centrifuge")) {
+                    zoneBadge.style.borderColor = "rgba(251, 191, 36, 0.5)";
+                    zoneBadge.style.color = "#fbbf24";
+                } else if (gravData.activeZone.includes("Repulsion")) {
+                    zoneBadge.style.borderColor = "rgba(244, 63, 94, 0.5)";
+                    zoneBadge.style.color = "#f43f5e";
+                } else {
+                    zoneBadge.style.borderColor = "rgba(52, 211, 153, 0.5)";
+                    zoneBadge.style.color = "#34d399";
+                }
+
+                // Update Gravity Gradient Tensor readout every 10 frames
+                if (frameCount % 10 === 0) {
+                    const tensor = calculateGravityGradientTensor(player.position);
+                    const tGrid = document.getElementById('tensorGrid');
+                    tGrid.innerHTML = `
+                        <span>${tensor[0][0].toFixed(3)}</span><span>${tensor[0][1].toFixed(3)}</span><span>${tensor[0][2].toFixed(3)}</span>
+                        <span>${tensor[1][0].toFixed(3)}</span><span>${tensor[1][1].toFixed(3)}</span><span>${tensor[1][2].toFixed(3)}</span>
+                        <span>${tensor[2][0].toFixed(3)}</span><span>${tensor[2][1].toFixed(3)}</span><span>${tensor[2][2].toFixed(3)}</span>
+                    `;
+                }
+
+                // FPS Counter
+                frameCount++;
+                const now = performance.now();
+                if (now - lastFpsTime >= 1000) {
+                    document.getElementById('fpsCounter').textContent = `${frameCount} FPS`;
+                    frameCount = 0;
+                    lastFpsTime = now;
+                }
+            }
+
+            // Window Resize Handler
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+
+            // Main Animation Loop
+            function animate() {
+                requestAnimationFrame(animate);
+                const now = performance.now();
+                const delta = (now - lastTime) / 1000.0;
+                lastTime = now;
+
+                updateSimulation(delta);
+                renderer.render(scene, camera);
+            }
+
+            animate();
+        });
+    </script>
+</body>
+</html>

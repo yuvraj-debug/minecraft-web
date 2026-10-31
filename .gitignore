@@ -1,0 +1,30 @@
+﻿# Dependencies
+node_modules/
+package-lock.json
+
+# Builds & Frameworks
+.next/
+dist/
+build/
+out/
+.cache/
+
+# Python Virtual Environments & Bytecode
+.venv/
+venv/
+env/
+ENV/
+__pycache__/
+*.pyc
+
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+!.env.example
+!.env.template
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini

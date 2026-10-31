@@ -1,0 +1,8 @@
+Starting Initialize...
+RegisterClassExW OK
+CreateWindowExW OK, hWnd=00000000000905DC
+D3D11CreateDeviceAndSwapChain OK
+OnResize OK
+D3DCompile VSMain OK
+D3DCompile PSMain OK
+Initialize fully finished successfully!
